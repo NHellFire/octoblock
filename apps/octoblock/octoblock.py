@@ -134,6 +134,12 @@ class OctoBlock(hass.Hass):
 
         rates = current_day_rates + next_day_rates
 
+        for rate in rates:
+            if isinstance(rate["start"], str):
+                rate["start"] = datetime.datetime.fromisoformat(rate["start"])
+            if isinstance(rate["end"], str):
+                rate["end"] = datetime.datetime.fromisoformat(rate["end"])
+
         self.incoming_tariff = rates
         return True
 
@@ -142,6 +148,12 @@ class OctoBlock(hass.Hass):
         next_day_rates = self.get_state(self.export_entity_id + "_next_day_rates", attribute="rates")
 
         rates = current_day_rates + next_day_rates
+
+        for rate in rates:
+            if isinstance(rate["start"], str):
+                rate["start"] = datetime.datetime.fromisoformat(rate["start"])
+            if isinstance(rate["end"], str):
+                rate["end"] = datetime.datetime.fromisoformat(rate["end"])
 
         self.outgoing_tariff = rates
         return True
