@@ -67,7 +67,10 @@ class OctoBlock(hass.Hass):
                             level="ERROR",
                         )
 
-                self.calculate_limit_points()
+                if not self.calculate_limit_points():
+                    self.log("Block '{}' is invalid, skipping".format(self.block_name), level="ERROR")
+                    continue
+
                 self.get_period_and_cost()
                 self.write_block_sensor_data()
 
@@ -88,7 +91,11 @@ class OctoBlock(hass.Hass):
                     + "\nName: {}".format(self.block_name),
                     level="DEBUG",
                 )
-                self.calculate_limit_points()
+
+                if not self.calculate_limit_points():
+                    self.log("Lookahead '{}' is invalid, skipping".format(self.block_name), level="ERROR")
+                    continue
+
                 self.write_lookahead_sensor_data()
 
     def get_import_prices(self):
@@ -173,6 +180,7 @@ class OctoBlock(hass.Hass):
             "start date: {} / end date: {}".format(self.start_date, self.end_date),
             level="DEBUG",
         )
+        return True
 
     @classmethod
     def floor_dt(cls, dt, interval=30):
