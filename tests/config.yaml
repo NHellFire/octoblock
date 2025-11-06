@@ -2,7 +2,6 @@ octoblock:
   module: octoblock
   class: OctoBlock
   import_entity_id: event.octopus_energy_electricity
-  use_timezone: True
   price_round: 2
   # time_format: "%Y-%m-%dT%H:%M:%S%Z"
   time_format: "%d/%m/%Y %H:%M:%S"
