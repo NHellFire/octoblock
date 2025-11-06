@@ -24,6 +24,31 @@ class OctoBlock(hass.Hass):
         self.run_hourly(self.period_and_cost_callback, on00)
         self.run_hourly(self.period_and_cost_callback, on30)
 
+    # These need to be reset between uses or we'll have config from a previous entry
+    # In future, this will be moved to a separate class to avoid this
+    def reset_state_vars(self):
+        vars = [
+            "hours",
+            "block_name",
+            "start_period",
+            "incoming",
+            "outgoing",
+            "limit_start",
+            "limit_end",
+            "price",
+            "operation",
+            "and_equal",
+            "duration_ahead"
+        ]
+
+        for v in vars:
+            try:
+                delattr(self, v)
+            except AttributeError:
+                pass
+
+        #self.log("vars: {}".format(self.__dict__.keys()), level="DEBUG")
+
     def period_and_cost_callback(self, kwargs):
         if not self.get_import_prices():
             self.log("Import prices unavailable", level="ERROR")
@@ -42,6 +67,7 @@ class OctoBlock(hass.Hass):
 
         if self.blocks:
             for block in self.blocks:
+                self.reset_state_vars()
                 self.log("Block: {}".format(block), level="DEBUG")
 
                 self.hours = block.get("hour", 1)
@@ -76,6 +102,10 @@ class OctoBlock(hass.Hass):
 
         if self.lookaheads:
             for lookahead in self.lookaheads:
+                self.reset_state_vars()
+                # Just to silence a warning from calculate_limit_points
+                self.start_period = "now"
+
                 self.price = lookahead.get("price")
                 self.operation = lookahead.get("operation", "below")
                 if self.operation != "below" and self.operation != "above":
@@ -126,7 +156,7 @@ class OctoBlock(hass.Hass):
                 try:
                     limit_end = datetime.datetime.strptime(self.limit_end, "%H:%M")
                 except ValueError:
-                    self.log("end_time not in correct HH:MM format", level="ERROR")
+                    self.log("end_time '{}' not in correct HH:MM format".format(self.limit_end), level="ERROR")
                     return False
 
                 self.end_date = datetime.datetime.combine(now, limit_end, tzinfo=now.tzinfo)
