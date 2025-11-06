@@ -31,6 +31,17 @@ class OctoBlock(hass.Hass):
             self.log("Import prices unavailable", level="ERROR")
             return False
 
+        # Fetch the export prices if needed
+        needs_export_prices = False
+        if self.blocks:
+            for block in self.blocks:
+                if block.get("export", False):
+                    needs_export_prices = True
+                    break
+
+        if needs_export_prices and not self.get_export_prices():
+            self.log("Export prices unavailable", level="ERROR")
+
         if self.blocks:
             for block in self.blocks:
                 self.hours = block.get("hour", 1)
@@ -49,8 +60,6 @@ class OctoBlock(hass.Hass):
                     # apps.yaml as it wasnt an option when originally released
                     # However if export is True, import must be False
                     self.incoming = False
-                    if not self.get_export_prices():
-                        self.log("Export prices unavailable", level="ERROR")
                     if block.get("import") and block.get("export"):
                         self.log(
                             "import and export should not both be True"
