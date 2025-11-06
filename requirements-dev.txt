@@ -1,2 +1,2 @@
 appdaemontestframework
-freezegun
+git+https://github.com/NHellFire/freezegun.git@datetime/combine
