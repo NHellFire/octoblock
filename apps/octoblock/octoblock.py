@@ -32,7 +32,7 @@ class OctoBlock(hass.Hass):
         if self.blocks:
             for block in self.blocks:
                 self.hours = block.get("hour", 1)
-                self.name = block.get("name", None)
+                self.block_name = block.get("name", None)
                 start_period = block.get("start_period", "now")
                 self.start_period = str(start_period).lower()
                 self.incoming = block.get("import", True)
@@ -68,13 +68,13 @@ class OctoBlock(hass.Hass):
                     self.log("Operation must be either above or below", level="ERROR")
                 self.and_equal = lookahead.get("and_equal", False)
                 self.duration_ahead = lookahead.get("duration_ahead", 12)
-                self.name = lookahead.get("name", None)
+                self.block_name = lookahead.get("name", None)
                 self.log(
                     "Lookahead:\nPrice: {}".format(
                         round(self.price, int(self.price_round))
                     )
                     + "\nFor: {}".format(self.duration_ahead)
-                    + "\nName: {}".format(self.name),
+                    + "\nName: {}".format(self.block_name),
                     level="DEBUG",
                 )
                 self.calculate_limit_points()
@@ -341,8 +341,8 @@ class OctoBlock(hass.Hass):
     def write_block_sensor_data(self):
         hours = str(self.hours).replace(".", "_")
 
-        if self.name:
-            name = str(self.name).replace(".", "_")
+        if self.block_name:
+            name = str(self.block_name).replace(".", "_")
             entity_id_t = "sensor." + name + "_time"
             entity_id_p = "sensor." + name + "_price"
 
@@ -360,7 +360,7 @@ class OctoBlock(hass.Hass):
                     attributes={"unit_of_measurement": "p/kWh", "icon": "mdi:flash"},
                 )
             else:
-                if not self.name:
+                if not self.block_name:
                     entity_id_t = "sensor.octopus_" + hours + "hour_time"
                     entity_id_p = "sensor.octopus_" + hours + "hour_price"
 
@@ -394,7 +394,7 @@ class OctoBlock(hass.Hass):
                     },
                 )
             else:
-                if not self.name:
+                if not self.block_name:
                     entity_id_t = "sensor.octopus_export" + hours + "hour_time"
                     entity_id_p = "sensor.octopus_export" + hours + "hour_price"
 
@@ -435,8 +435,8 @@ class OctoBlock(hass.Hass):
 
     def write_lookahead_sensor_data(self):
         state = self.is_price_below_x()
-        if self.name:
-            name = str(self.name).replace(".", "_")
+        if self.block_name:
+            name = str(self.block_name).replace(".", "_")
             self.entity_id = "sensor." + name
         else:
             price = str(round(self.price, int(self.price_round))).replace(".", "_")
