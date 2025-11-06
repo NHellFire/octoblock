@@ -1,7 +1,7 @@
 import datetime
 
 import dateutil.parser
-import pytz
+import dateutil.tz
 from appdaemon.plugins.hass import hassapi as hass
 
 
@@ -209,11 +209,11 @@ class OctoBlock(hass.Hass):
     @classmethod
     def limit_time_timezone(cls, dtz):
         fmt = "%Y-%m-%dT%H:%M:%S"
-        greenwich = pytz.timezone("Europe/London")
+        greenwich = dateutil.tz.gettz("Europe/London")
         dt = dtz.strip("Z")
         date_time = dateutil.parser.parse(dt)
         local_datetime = date_time.astimezone(greenwich)
-        utc_datetime = local_datetime.astimezone(pytz.utc)
+        utc_datetime = local_datetime.astimezone(dateutil.tz.UTC)
         utcz = utc_datetime.strftime(fmt) + "Z"
         return utcz
 
@@ -318,7 +318,7 @@ class OctoBlock(hass.Hass):
                     self.log("**Time: {}**".format(self.time), level="DEBUG")
 
                     if self.use_timezone:
-                        greenwich = pytz.timezone("Europe/London")
+                        greenwich = dateutil.tz.gettz("Europe/London")
                         date_time = dateutil.parser.parse(self.time)
                         local_datetime = date_time.astimezone(greenwich)
                         self.time = local_datetime.strftime(self.time_format)
