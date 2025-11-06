@@ -1,18 +1,34 @@
 octoblock:
   module: octoblock
   class: OctoBlock
-  import_entity_id: event.octopus_energy_electricity
   price_round: 2
-  # time_format: "%Y-%m-%dT%H:%M:%S%Z"
-  time_format: "%d/%m/%Y %H:%M:%S"
+  import_entity_id: event.octopus_energy_electricity
+  export_entity_id: event.octopus_energy_electricity
   blocks:
     - hour: 1
       import: True
       start_period: now
       name: octopus_1hour
+    - hour: 1.5
+      start_period: today
+      name: octopus_vacuum
+      limits:
+        start_time: '07:00'
+        end_time: '16:00'
+    - hour: 2
+      import: True
+      start_period: now
+    - hour: 0
+      start_period: now
+      name: octopus_current_import
+    - hour: 0
+      export: True
+      import: False
+      start_period: now
+      name: octopus_current_export
   lookaheads:
-     - price: 3.0
-       operation: below
-       and_equal: True
-       duration_ahead: 12
-       name: hw_via_electric_not_gas
+    - price: 3.0
+      operation: below
+      and_equal: True
+      duration_ahead: 12
+      name: hw_via_electric_not_gas
