@@ -37,9 +37,9 @@ jobs:
         pytest
     - name: Test coverage with pytest
       run: |
-          pytest --junitxml=pytest.xml --cov-report=term-missing:skip-covered --cov=apps tests/ | tee pytest-coverage.txt
+          pytest --junitxml=pytest.xml --cov-report=term-missing:skip-covered --cov-report=xml:pytest-coverage.xml --cov=apps tests/
     - name: Pytest coverage comment
       uses: MishaKav/pytest-coverage-comment@a1fe18e2b00c64a765568e2edb9f1706eb8fc88b
       with:
-        pytest-coverage-path: ./pytest-coverage.txt
+        pytest-xml-coverage-path: ./pytest-coverage.xml
         junitxml-path: ./pytest.xml
