@@ -53,3 +53,4 @@ jobs:
       with:
         pytest-xml-coverage-path: ./pytest-coverage.xml
         junitxml-path: ./pytest.xml
+        coverage-path-prefix: apps/
