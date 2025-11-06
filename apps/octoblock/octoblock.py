@@ -27,7 +27,9 @@ class OctoBlock(hass.Hass):
         self.run_hourly(self.period_and_cost_callback, on30)
 
     def period_and_cost_callback(self, kwargs):
-        self.get_import_prices()
+        if not self.get_import_prices():
+            self.log("Import prices unavailable", level="ERROR")
+            return False
 
         if self.blocks:
             for block in self.blocks:
@@ -47,7 +49,8 @@ class OctoBlock(hass.Hass):
                     # apps.yaml as it wasnt an option when originally released
                     # However if export is True, import must be False
                     self.incoming = False
-                    self.get_export_prices()
+                    if not self.get_export_prices():
+                        self.log("Export prices unavailable", level="ERROR")
                     if block.get("import") and block.get("export"):
                         self.log(
                             "import and export should not both be True"
@@ -93,10 +96,12 @@ class OctoBlock(hass.Hass):
                 ),
                 level="ERROR",
             )
+            return False
 
         tariff = json.loads(r.text)
         self.incoming_tariff = tariff["results"]
         self.incoming_tariff.reverse()
+        return True
 
     def get_export_prices(self):
         r = requests.get(
@@ -111,10 +116,12 @@ class OctoBlock(hass.Hass):
                 ),
                 level="ERROR",
             )
+            return False
 
         tariff = json.loads(r.text)
         self.outgoing_tariff = tariff["results"]
         self.outgoing_tariff.reverse()
+        return True
 
     def calculate_limit_points(self):
         now = datetime.datetime.utcnow()
