@@ -1,24 +1,24 @@
 import datetime
-import json
 
 import dateutil.parser
 import pytz
-import requests
 from appdaemon.plugins.hass import hassapi as hass
 
 
 class OctoBlock(hass.Hass):
     def initialize(self):
-        self.baseurl = "https://api.octopus.energy/v1/products/"
-        region = self.args.get("region", "H")
-        self.region = str(region).upper()
-        self.import_code = self.args.get("import_code", "AGILE-FLEX-22-11-25")
-        self.export_code = self.args.get("export_code", "AGILE-OUTGOING-19-05-13")
+        self.import_entity_id = self.args.get("import_entity_id", None)
+        self.export_entity_id = self.args.get("export_entity_id", None)
         self.use_timezone = self.args.get("use_timezone", False)
         self.price_round = self.args.get("price_round", 4)
         self.time_format = self.args.get("time_format", "%Y-%m-%dT%H:%M:%S%Z")
         self.blocks = self.args.get("blocks", None)
         self.lookaheads = self.args.get("lookaheads", None)
+
+        if self.import_entity_id:
+            self.import_entity_id = self.import_entity_id.replace("_current_day_rates", "").replace("_next_day_rates", "")
+        if self.export_entity_id:
+            self.export_entity_id = self.export_entity_id.replace("_current_day_rates", "").replace("_next_day_rates", "")
 
         on00 = datetime.time(0, 0, 0)
         on30 = datetime.time(0, 30, 0)
@@ -93,43 +93,21 @@ class OctoBlock(hass.Hass):
                 self.write_lookahead_sensor_data()
 
     def get_import_prices(self):
-        r = requests.get(
-            f"{self.baseurl}{self.import_code}/electricity-tariffs/E-1R-"
-            f"{self.import_code}-{self.region}/standard-unit-rates/"
-        )
+        current_day_rates = self.get_state(self.import_entity_id + "_current_day_rates", attribute="rates")
+        next_day_rates = self.get_state(self.import_entity_id + "_next_day_rates", attribute="rates")
 
-        if r.status_code != 200:
-            self.log(
-                "Error {} getting incoming tariff data: {}".format(
-                    r.status_code, r.text
-                ),
-                level="ERROR",
-            )
-            return False
+        rates = current_day_rates + next_day_rates
 
-        tariff = json.loads(r.text)
-        self.incoming_tariff = tariff["results"]
-        self.incoming_tariff.reverse()
+        self.incoming_tariff = rates
         return True
 
     def get_export_prices(self):
-        r = requests.get(
-            f"{self.baseurl}{self.export_code}/electricity-tariffs/E-1R-"
-            f"{self.export_code}-{self.region}/standard-unit-rates/"
-        )
+        current_day_rates = self.get_state(self.export_entity_id + "_current_day_rates", attribute="rates")
+        next_day_rates = self.get_state(self.export_entity_id + "_next_day_rates", attribute="rates")
 
-        if r.status_code != 200:
-            self.log(
-                "Error {} getting outgoing tariff data: {}".format(
-                    r.status_code, r.text
-                ),
-                level="ERROR",
-            )
-            return False
+        rates = current_day_rates + next_day_rates
 
-        tariff = json.loads(r.text)
-        self.outgoing_tariff = tariff["results"]
-        self.outgoing_tariff.reverse()
+        self.outgoing_tariff = rates
         return True
 
     def calculate_limit_points(self):
@@ -243,7 +221,7 @@ class OctoBlock(hass.Hass):
     def date_to_idx(cls, tariff, date):
         # Date format for API - 2020-05-29T20:00:00Z
         idx = next(
-            (i for i, item in enumerate(tariff) if item["valid_from"] == date), None
+            (i for i, item in enumerate(tariff) if item["start"] == date), None
         )
         return idx
 
@@ -265,7 +243,7 @@ class OctoBlock(hass.Hass):
             level="INFO",
         )
         self.log(
-            f"**Tariff Date get_period_and_cost: {tariffresults[i]['valid_from']} **",
+            f"**Tariff Date get_period_and_cost: {tariffresults[i]['start']} **",
             level="DEBUG",
         )
 
@@ -336,7 +314,7 @@ class OctoBlock(hass.Hass):
             for curridx in range(start_idx, end_idx):
                 period = tariffresults[curridx]
                 if period[str(self.hours) + "_hour_average"] == self.price:
-                    self.time = period["valid_from"]
+                    self.time = period["start"]
                     self.log("**Time: {}**".format(self.time), level="DEBUG")
 
                     if self.use_timezone:
