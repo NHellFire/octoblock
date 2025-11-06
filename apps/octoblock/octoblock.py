@@ -42,6 +42,8 @@ class OctoBlock(hass.Hass):
 
         if self.blocks:
             for block in self.blocks:
+                self.log("Block: {}".format(block), level="DEBUG")
+
                 self.hours = block.get("hour", 1)
                 self.block_name = block.get("name", None)
                 start_period = block.get("start_period", "now")
@@ -65,7 +67,6 @@ class OctoBlock(hass.Hass):
                             level="ERROR",
                         )
 
-                self.log("Block: {}".format(block), level="DEBUG")
                 self.calculate_limit_points()
                 self.get_period_and_cost()
                 self.write_block_sensor_data()
