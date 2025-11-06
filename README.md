@@ -2,12 +2,7 @@
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Default-orange.svg)](https://github.com/custom-components/hacs)
 
-[![Codacy Badge](https://app.codacy.com/project/badge/Grade/35d30362cd7741bea9688225435134ac)](https://www.codacy.com/manual/badguy99/octoblock?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=badguy99/octoblock&amp;utm_campaign=Badge_Grade)
-
-If you think this will be useful to you, please consider signing up to Octopus Energy with my referral code: https://share.octopus.energy/dense-ape-125 - You'll get £50 credit too!
-
-## Contributions Only
-I no longer use Agile Octopus tariffs, and do not plan on making any more updates to this code. As such if you want something, please feel free to fork the code and make changes. I will happily merge received PRs.
+If you think this will be useful to you, please consider signing up to Octopus Energy with my referral code: https://share.octopus.energy/grey-dingo-578 - You'll get £50 credit too!
 
 ## Summary
 
@@ -46,7 +41,7 @@ sensor.octopus_export_next_price
 
 Make sure you have the [Octopus Energy Integration](https://github.com/BottlecapDave/HomeAssistant-OctopusEnergy/) installed and configured.
 
-Use [HACS](https://github.com/custom-components/hacs) or download the octoblock directory from inside the apps directory [here](https://github.com/badguy99/octoblock/releases) to your local apps directory, then add and customise the following configuration to appdaemon/apps/apps.yaml to enable the octoblock module.
+Use [HACS](https://github.com/custom-components/hacs) or download the octoblock directory from inside the apps directory [here](https://github.com/NHellFire/octoblock/releases) to your local apps directory, then add and customise the following configuration to appdaemon/apps/apps.yaml to enable the octoblock module.
 
 ## Example apps.yaml Configuration
 ```yaml
@@ -109,11 +104,11 @@ This means that using `today` you will get the absolute cheapest block for today
 
 This may be best illustrated with a couple of pictures:
 
-![State information with now start period](https://github.com/badguy99/octoblock/blob/master/StartTimeNow.PNG)
+![State information with now start period](https://github.com/NHellFire/octoblock/blob/master/StartTimeNow.PNG)
 
 Using `now` `start_period` this has turned on and off a few times within the day as it is reevaluated as the day goes on
 
-![State information with today start period](https://github.com/badguy99/octoblock/blob/master/StartTimeToday.PNG)
+![State information with today start period](https://github.com/NHellFire/octoblock/blob/master/StartTimeToday.PNG)
 
 Using `today` `start_period` this has only turned on once during the day
 
@@ -171,4 +166,4 @@ entities:
     name: Time
 ```
 
-![Lovelace UI best usage time example cards](https://github.com/badguy99/octoblock/blob/master/LovelaceBesttimeCard.PNG)
+![Lovelace UI best usage time example cards](https://github.com/NHellFire/octoblock/blob/master/LovelaceBesttimeCard.PNG)
