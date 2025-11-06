@@ -159,7 +159,7 @@ class OctoBlock(hass.Hass):
                     self.log("end_time '{}' not in correct HH:MM format".format(self.limit_end), level="ERROR")
                     return False
 
-                self.end_date = datetime.datetime.combine(now, limit_end, tzinfo=now.tzinfo)
+                self.end_date = datetime.datetime.combine(now, limit_end.time(), tzinfo=now.tzinfo)
 
                 if now.time() >= datetime.time(23, 30, 0):
                     self.end_date = self.end_date + datetime.timedelta(days=1)
@@ -175,7 +175,7 @@ class OctoBlock(hass.Hass):
                     self.log("start_time not in correct HH:MM format", level="ERROR")
                     return False
 
-                self.start_date = datetime.datetime.combine(now, limit_start, tzinfo=now.tzinfo)
+                self.start_date = datetime.datetime.combine(now, limit_start.time(), tzinfo=now.tzinfo)
 
                 if now.time() >= datetime.time(23, 30, 0):
                     self.start_date = self.start_date + datetime.timedelta(days=1)
