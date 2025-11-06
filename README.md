@@ -44,6 +44,8 @@ sensor.octopus_export_next_price
 
 ## Installation
 
+Make sure you have the [Octopus Energy Integration](https://github.com/BottlecapDave/HomeAssistant-OctopusEnergy/) installed and configured.
+
 Use [HACS](https://github.com/custom-components/hacs) or download the octoblock directory from inside the apps directory [here](https://github.com/badguy99/octoblock/releases) to your local apps directory, then add and customise the following configuration to appdaemon/apps/apps.yaml to enable the octoblock module.
 
 ## Example apps.yaml Configuration
@@ -51,12 +53,9 @@ Use [HACS](https://github.com/custom-components/hacs) or download the octoblock 
 octoblock:
   module: octoblock
   class: OctoBlock
-  region: H
-  import_code: AGILE-FLEX-22-11-25
-  export_code: AGILE-OUTGOING-19-05-13
-  use_timezone: False
+  import_entity_id: event.octopus_energy_electricity_{{METER_SERIAL_NUMBER}}_{{MPAN_NUMBER}}_current_day_rates
+  export_entity_id: event.octopus_energy_electricity_{{METER_SERIAL_NUMBER}}_{{MPAN_NUMBER}}_export_current_day_rates
   price_round: 2
-  time_format: "%Y-%m-%dT%H:%M:%S%Z"
   blocks:
     - hour: 1
       import: True
@@ -91,21 +90,12 @@ The module and class sections need to remain as above, other sections should be 
 
 ### Octoblock module
 
-`region` is the region letter (e.g. `H`) from the end of your tariff code which will look something like `E-1R-AGILE-18-02-21-H`.  The tariff code used to be found on the [Octopus Energy developer dashboard](https://octopus.energy/dashboard/developer/) webpage in the Unit Rates section for your account, but Octopus seem to have removed this.
+`import_entity_id` must be set to the name of the current_day_rates entity created by [Octopus Energy Integration](https://github.com/BottlecapDave/HomeAssistant-OctopusEnergy/).
 
-The easiest way now to get the tarrif code (and region) for your import and export account is using the [Octopus Energy Integration](https://github.com/BottlecapDave/HomeAssistant-OctopusEnergy/):
-
-Install, configure and start the integration, go to Developer Tools/States and filter on `current_day_rates`, then look at the attributes of the _current_day_rates and _export_current_day_rates entities for the tarrif_code attribute which will be formatted something like `E-1R-AGILE-FLEX-22-11-25-H`.
-
-`import_code` and `export_code` should be specified from the tariff code retrieved above with the preceeding `E-1R-` and the trailing `-H` removed.  If not specified they default to `AGILE-FLEX-22-11-25` and `AGILE-OUTGOING-19-05-13` respectively.
-
-NB: If you get the tariff code wrong (e.g. forget to remove the E-1R- prefix or -H suffix) you will get an error `ERROR octoblock: Error 404 getting incoming tariff data: {"detail":"Not found."}` reported in the appdaemon log and the rest of the octoblock configuration (custom blocks etc) will be ignored!
-
-`use_timezone` can be set to True or False, and defaults to False, it allows you to specify if the date/time should be displayed in UTC (False), or using Europe/London (True) as the timezone. For example, `2020-03-29T02:00:00Z` or `2020-03-29T03:00:00 BST` respectively.
+`export_entity_id` must be set to the name of the export_current_day_rates entity created by [Octopus Energy Integration](https://github.com/BottlecapDave/HomeAssistant-OctopusEnergy/).
 
 `price_round` can be set to the number of decimal places to round the average price for the specified period to, and defaults to 4 if not specified.  For example, set to 2 to round to 2 decimal places, e.g. 14.56 p/kWh.
 
-`time_format` can be set to a [strftime format code](https://www.geeksforgeeks.org/python-strftime-function/) that the date/time that the block starts at. If not specified it defaults to `%Y-%m-%dT%H:%M:%S%Z`, e.g. `2020-03-19T20:00:00Z`.  An easier to read and shorter time format for example could be `%a %-I:%M %p` which would display the block start time as `Tue 1:30 AM`.  Note that if you change the time_format from the default then you may need to adjust any automation scripts so that they can still match the returned block time.  If you are only displaying the block time in a Lovelace UI dashboard display as shown below then this won't be an issue.
 
 ### Blocks
 
