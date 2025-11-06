@@ -1,0 +1,19 @@
+octoblock:
+  module: octoblock
+  class: OctoBlock
+  import_entity_id: event.octopus_energy_electricity
+  use_timezone: True
+  price_round: 2
+  # time_format: "%Y-%m-%dT%H:%M:%S%Z"
+  time_format: "%d/%m/%Y %H:%M:%S"
+  blocks:
+    - hour: 1
+      import: True
+      start_period: now
+      name: octopus_1hour
+  lookaheads:
+     - price: 3.0
+       operation: below
+       and_equal: True
+       duration_ahead: 12
+       name: hw_via_electric_not_gas
