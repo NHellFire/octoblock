@@ -1,3 +1,4 @@
+import dateutil
 import yaml
 from appdaemontestframework import automation_fixture
 from freezegun import freeze_time
@@ -24,8 +25,12 @@ def octoblock(given_that):
 def test_get_import_prices(octoblock):
     octoblock.get_import_prices()
     assert octoblock.incoming_tariff is not None
-
+    assert octoblock.incoming_tariff[0]["start"] == datetime.datetime(2025, 11, 6, 0, 0, tzinfo=dateutil.tz.gettz("Europe/London"))
 
 @freeze_time("2025-11-06 12:00:00")
 def test_period_and_cost_callback(given_that, octoblock):
+    octoblock.period_and_cost_callback(None)
+
+@freeze_time("2025-11-06 23:31:00")
+def test_period_and_cost_callback_tomorrow(given_that, octoblock):
     octoblock.period_and_cost_callback(None)

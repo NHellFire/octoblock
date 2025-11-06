@@ -26,6 +26,18 @@ octoblock:
       import: False
       start_period: now
       name: octopus_current_export
+    - hour: 1
+      start_period: today
+      name: test_invalid_start
+      limits:
+        start_time: '07:001'
+        end_time: '16:00'
+    - hour: 1
+      start_period: today
+      name: test_invalid_end
+      limits:
+        start_time: '07:00'
+        end_time: '1600'
   lookaheads:
     - price: 3.0
       operation: below
