@@ -2,32 +2,33 @@
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Default-orange.svg)](https://github.com/custom-components/hacs)
 
-[![Codacy Badge](https://app.codacy.com/project/badge/Grade/35d30362cd7741bea9688225435134ac)](https://www.codacy.com/manual/badguy99/octoblock?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=badguy99/octoblock&amp;utm_campaign=Badge_Grade)
-
-If you think this will be useful to you, please consider signing up to Octopus Energy with my referral code: https://share.octopus.energy/dense-ape-125 - You'll get £50 credit too!
-
-## Contributions Only
-I no longer use Agile Octopus tariffs, and do not plan on making any more updates to this code. As such if you want something, please feel free to fork the code and make changes. I will happily merge received PRs.
+If you think this will be useful to you, please consider signing up to Octopus Energy with my referral code: https://share.octopus.energy/grey-dingo-578 - You'll get £50 credit too!
 
 ## Summary
 
 Octoblock is an app which works under [AppDaemon](https://www.home-assistant.io/docs/ecosystem/appdaemon/) within [Home Assistant](https://www.home-assistant.io/) which finds the cheapest “n” hour block for import or the most expensive “n” hour block for export, and works out the price of that block, for the Octopus Energy, Agile Octopus / Agile Outgoing Octopus tariffs. 
 
 It creates and sets sensors for the cost and start time,  for example, using the `apps.yaml` file below, the following entities are created and then updated:
-```yaml
-sensor.octopus_1hour_time
-sensor.octopus_1hour_price
-sensor.octopus_1_5hour_time
-sensor.octopus_1_5hour_price
-```
+
+| Name                       | Value      | Attributes                                        | Created when?                  |
+|----------------------------|------------|---------------------------------------------------|--------------------------------|
+| sensor.octopus_1hour       | Start time | `start`<br>`end`<br>`price`<br>`price_unit_of_measurement` | Always                    |
+| sensor.octopus_1hour_price | Unit rate  | `unit_of_measurement`                             | `legacy_entities` enabled |
+| sensor.octopus_1hour_time  | Start time | None                                              | `legacy_entities` enabled |
+| sensor.octopus_1_5hour       | Start time | `start`<br>`end`<br>`price`<br>`price_unit_of_measurement` | Always                    |
+| sensor.octopus_1_5hour_price | Unit rate  | `unit_of_measurement`                             | `legacy_entities` enabled |
+| sensor.octopus_1_5hour_time  | Start time | None                                              | `legacy_entities` enabled |
+
 
 Sensors for export will be created with naming such as:
-```yaml
-sensor.octopus_export_1hour_time
-sensor.octopus_export_1hour_price
-```
 
-Sensor names can be overridden and your own name specified in the yaml configuration. These will be of the format `sensor.<your_name>_time` and `sensor.<your_name>_price` with any dots in `<your_name>` changed to underscores.
+| Name                       | Value      | Attributes                                        | Created when?                  |
+|----------------------------|------------|---------------------------------------------------|--------------------------------|
+| sensor.octopus_export_1hour       | Start time | `start`<br>`end`<br>`price`<br>`price_unit_of_measurement` | Always                    |
+| sensor.octopus_export_1hour_price | Unit rate  | `unit_of_measurement`                             | `legacy_entities` enabled |
+| sensor.octopus_export_1hour_time  | Start time | None                                              | `legacy_entities` enabled |
+
+Sensor names can be overridden and your own name specified in the yaml configuration. These will be of the format `sensor.<your_name>`, `sensor.<your_name>_time`, and `sensor.<your_name>_price` with any dots in `<your_name>` changed to underscores.
 
 ### Special Cases
 With `start_period` set to `now` and `hour` set to `0` the current import or export price is returned, and the sensors are named:
@@ -44,19 +45,18 @@ sensor.octopus_export_next_price
 
 ## Installation
 
-Use [HACS](https://github.com/custom-components/hacs) or download the octoblock directory from inside the apps directory [here](https://github.com/badguy99/octoblock/releases) to your local apps directory, then add and customise the following configuration to appdaemon/apps/apps.yaml to enable the octoblock module.
+Make sure you have the [Octopus Energy Integration](https://github.com/BottlecapDave/HomeAssistant-OctopusEnergy/) installed and configured.
+
+Use [HACS](https://github.com/custom-components/hacs) or download the octoblock directory from inside the apps directory [here](https://github.com/NHellFire/octoblock/releases) to your local apps directory, then add and customise the following configuration to appdaemon/apps/apps.yaml to enable the octoblock module.
 
 ## Example apps.yaml Configuration
 ```yaml
 octoblock:
   module: octoblock
   class: OctoBlock
-  region: H
-  import_code: AGILE-FLEX-22-11-25
-  export_code: AGILE-OUTGOING-19-05-13
-  use_timezone: False
+  import_entity_id: event.octopus_energy_electricity_{{METER_SERIAL_NUMBER}}_{{MPAN_NUMBER}}_current_day_rates
+  export_entity_id: event.octopus_energy_electricity_{{METER_SERIAL_NUMBER}}_{{MPAN_NUMBER}}_export_current_day_rates
   price_round: 2
-  time_format: "%Y-%m-%dT%H:%M:%S%Z"
   blocks:
     - hour: 1
       import: True
@@ -91,21 +91,14 @@ The module and class sections need to remain as above, other sections should be 
 
 ### Octoblock module
 
-`region` is the region letter (e.g. `H`) from the end of your tariff code which will look something like `E-1R-AGILE-18-02-21-H`.  The tariff code used to be found on the [Octopus Energy developer dashboard](https://octopus.energy/dashboard/developer/) webpage in the Unit Rates section for your account, but Octopus seem to have removed this.
+`import_entity_id` must be set to the name of the current_day_rates entity created by [Octopus Energy Integration](https://github.com/BottlecapDave/HomeAssistant-OctopusEnergy/).
 
-The easiest way now to get the tarrif code (and region) for your import and export account is using the [Octopus Energy Integration](https://github.com/BottlecapDave/HomeAssistant-OctopusEnergy/):
-
-Install, configure and start the integration, go to Developer Tools/States and filter on `current_day_rates`, then look at the attributes of the _current_day_rates and _export_current_day_rates entities for the tarrif_code attribute which will be formatted something like `E-1R-AGILE-FLEX-22-11-25-H`.
-
-`import_code` and `export_code` should be specified from the tariff code retrieved above with the preceeding `E-1R-` and the trailing `-H` removed.  If not specified they default to `AGILE-FLEX-22-11-25` and `AGILE-OUTGOING-19-05-13` respectively.
-
-NB: If you get the tariff code wrong (e.g. forget to remove the E-1R- prefix or -H suffix) you will get an error `ERROR octoblock: Error 404 getting incoming tariff data: {"detail":"Not found."}` reported in the appdaemon log and the rest of the octoblock configuration (custom blocks etc) will be ignored!
-
-`use_timezone` can be set to True or False, and defaults to False, it allows you to specify if the date/time should be displayed in UTC (False), or using Europe/London (True) as the timezone. For example, `2020-03-29T02:00:00Z` or `2020-03-29T03:00:00 BST` respectively.
+`export_entity_id` must be set to the name of the export_current_day_rates entity created by [Octopus Energy Integration](https://github.com/BottlecapDave/HomeAssistant-OctopusEnergy/).
 
 `price_round` can be set to the number of decimal places to round the average price for the specified period to, and defaults to 4 if not specified.  For example, set to 2 to round to 2 decimal places, e.g. 14.56 p/kWh.
 
-`time_format` can be set to a [strftime format code](https://www.geeksforgeeks.org/python-strftime-function/) that the date/time that the block starts at. If not specified it defaults to `%Y-%m-%dT%H:%M:%S%Z`, e.g. `2020-03-19T20:00:00Z`.  An easier to read and shorter time format for example could be `%a %-I:%M %p` which would display the block start time as `Tue 1:30 AM`.  Note that if you change the time_format from the default then you may need to adjust any automation scripts so that they can still match the returned block time.  If you are only displaying the block time in a Lovelace UI dashboard display as shown below then this won't be an issue.
+`legacy_entities` is optional, can be `True` or `False` (default: `True`). Whether or not to create the old separate *_time, *_price entities.
+
 
 ### Blocks
 
@@ -119,11 +112,11 @@ This means that using `today` you will get the absolute cheapest block for today
 
 This may be best illustrated with a couple of pictures:
 
-![State information with now start period](https://github.com/badguy99/octoblock/blob/master/StartTimeNow.PNG)
+![State information with now start period](https://github.com/NHellFire/octoblock/blob/master/StartTimeNow.PNG)
 
 Using `now` `start_period` this has turned on and off a few times within the day as it is reevaluated as the day goes on
 
-![State information with today start period](https://github.com/badguy99/octoblock/blob/master/StartTimeToday.PNG)
+![State information with today start period](https://github.com/NHellFire/octoblock/blob/master/StartTimeToday.PNG)
 
 Using `today` `start_period` this has only turned on once during the day
 
@@ -181,4 +174,4 @@ entities:
     name: Time
 ```
 
-![Lovelace UI best usage time example cards](https://github.com/badguy99/octoblock/blob/master/LovelaceBesttimeCard.PNG)
+![Lovelace UI best usage time example cards](https://github.com/NHellFire/octoblock/blob/master/LovelaceBesttimeCard.PNG)

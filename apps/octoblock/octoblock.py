@@ -1,24 +1,23 @@
 import datetime
-import json
 
 import dateutil.parser
-import pytz
-import requests
+import dateutil.tz
 from appdaemon.plugins.hass import hassapi as hass
 
 
 class OctoBlock(hass.Hass):
     def initialize(self):
-        self.baseurl = "https://api.octopus.energy/v1/products/"
-        region = self.args.get("region", "H")
-        self.region = str(region).upper()
-        self.import_code = self.args.get("import_code", "AGILE-FLEX-22-11-25")
-        self.export_code = self.args.get("export_code", "AGILE-OUTGOING-19-05-13")
-        self.use_timezone = self.args.get("use_timezone", False)
+        self.import_entity_id = self.args.get("import_entity_id", None)
+        self.export_entity_id = self.args.get("export_entity_id", None)
         self.price_round = self.args.get("price_round", 4)
-        self.time_format = self.args.get("time_format", "%Y-%m-%dT%H:%M:%S%Z")
         self.blocks = self.args.get("blocks", None)
         self.lookaheads = self.args.get("lookaheads", None)
+        self.legacy_entities = self.args.get("legacy_entities", True)
+
+        if self.import_entity_id:
+            self.import_entity_id = self.import_entity_id.replace("_current_day_rates", "").replace("_next_day_rates", "")
+        if self.export_entity_id:
+            self.export_entity_id = self.export_entity_id.replace("_current_day_rates", "").replace("_next_day_rates", "")
 
         on00 = datetime.time(0, 0, 0)
         on30 = datetime.time(0, 30, 0)
@@ -26,13 +25,54 @@ class OctoBlock(hass.Hass):
         self.run_hourly(self.period_and_cost_callback, on00)
         self.run_hourly(self.period_and_cost_callback, on30)
 
+    # These need to be reset between uses or we'll have config from a previous entry
+    # In future, this will be moved to a separate class to avoid this
+    def reset_state_vars(self):
+        vars = [
+            "hours",
+            "block_name",
+            "start_period",
+            "incoming",
+            "outgoing",
+            "limit_start",
+            "limit_end",
+            "price",
+            "operation",
+            "and_equal",
+            "duration_ahead"
+        ]
+
+        for v in vars:
+            try:
+                delattr(self, v)
+            except AttributeError:
+                pass
+
+        #self.log("vars: {}".format(self.__dict__.keys()), level="DEBUG")
+
     def period_and_cost_callback(self, kwargs):
-        self.get_import_prices()
+        if not self.get_import_prices():
+            self.log("Import prices unavailable", level="ERROR")
+            return False
+
+        # Fetch the export prices if needed
+        needs_export_prices = False
+        if self.blocks:
+            for block in self.blocks:
+                if block.get("export", False):
+                    needs_export_prices = True
+                    break
+
+        if needs_export_prices and not self.get_export_prices():
+            self.log("Export prices unavailable", level="ERROR")
 
         if self.blocks:
             for block in self.blocks:
+                self.reset_state_vars()
+                self.log("Block: {}".format(block), level="DEBUG")
+
                 self.hours = block.get("hour", 1)
-                self.name = block.get("name", None)
+                self.block_name = block.get("name", None)
                 start_period = block.get("start_period", "now")
                 self.start_period = str(start_period).lower()
                 self.incoming = block.get("import", True)
@@ -47,7 +87,6 @@ class OctoBlock(hass.Hass):
                     # apps.yaml as it wasnt an option when originally released
                     # However if export is True, import must be False
                     self.incoming = False
-                    self.get_export_prices()
                     if block.get("import") and block.get("export"):
                         self.log(
                             "import and export should not both be True"
@@ -55,117 +94,109 @@ class OctoBlock(hass.Hass):
                             level="ERROR",
                         )
 
-                self.log("Block: {}".format(block), level="DEBUG")
-                self.calculate_limit_points()
+                if not self.calculate_limit_points():
+                    self.log("Block '{}' is invalid, skipping".format(self.block_name), level="ERROR")
+                    continue
+
                 self.get_period_and_cost()
                 self.write_block_sensor_data()
 
         if self.lookaheads:
             for lookahead in self.lookaheads:
+                self.reset_state_vars()
+                # Just to silence a warning from calculate_limit_points
+                self.start_period = "now"
+
                 self.price = lookahead.get("price")
                 self.operation = lookahead.get("operation", "below")
                 if self.operation != "below" and self.operation != "above":
                     self.log("Operation must be either above or below", level="ERROR")
                 self.and_equal = lookahead.get("and_equal", False)
                 self.duration_ahead = lookahead.get("duration_ahead", 12)
-                self.name = lookahead.get("name", None)
+                self.block_name = lookahead.get("name", None)
                 self.log(
                     "Lookahead:\nPrice: {}".format(
                         round(self.price, int(self.price_round))
                     )
                     + "\nFor: {}".format(self.duration_ahead)
-                    + "\nName: {}".format(self.name),
+                    + "\nName: {}".format(self.block_name),
                     level="DEBUG",
                 )
-                self.calculate_limit_points()
+
+                if not self.calculate_limit_points():
+                    self.log("Lookahead '{}' is invalid, skipping".format(self.block_name), level="ERROR")
+                    continue
+
                 self.write_lookahead_sensor_data()
 
     def get_import_prices(self):
-        r = requests.get(
-            f"{self.baseurl}{self.import_code}/electricity-tariffs/E-1R-"
-            f"{self.import_code}-{self.region}/standard-unit-rates/"
-        )
+        current_day_rates = self.get_state(self.import_entity_id + "_current_day_rates", attribute="rates")
+        next_day_rates = self.get_state(self.import_entity_id + "_next_day_rates", attribute="rates")
 
-        if r.status_code != 200:
-            self.log(
-                "Error {} getting incoming tariff data: {}".format(
-                    r.status_code, r.text
-                ),
-                level="ERROR",
-            )
+        rates = current_day_rates + next_day_rates
 
-        tariff = json.loads(r.text)
-        self.incoming_tariff = tariff["results"]
-        self.incoming_tariff.reverse()
+        for rate in rates:
+            if isinstance(rate["start"], str):
+                rate["start"] = datetime.datetime.fromisoformat(rate["start"])
+            if isinstance(rate["end"], str):
+                rate["end"] = datetime.datetime.fromisoformat(rate["end"])
+
+        self.incoming_tariff = rates
+        return True
 
     def get_export_prices(self):
-        r = requests.get(
-            f"{self.baseurl}{self.export_code}/electricity-tariffs/E-1R-"
-            f"{self.export_code}-{self.region}/standard-unit-rates/"
-        )
+        current_day_rates = self.get_state(self.export_entity_id + "_current_day_rates", attribute="rates")
+        next_day_rates = self.get_state(self.export_entity_id + "_next_day_rates", attribute="rates")
 
-        if r.status_code != 200:
-            self.log(
-                "Error {} getting outgoing tariff data: {}".format(
-                    r.status_code, r.text
-                ),
-                level="ERROR",
-            )
+        rates = current_day_rates + next_day_rates
 
-        tariff = json.loads(r.text)
-        self.outgoing_tariff = tariff["results"]
-        self.outgoing_tariff.reverse()
+        for rate in rates:
+            if isinstance(rate["start"], str):
+                rate["start"] = datetime.datetime.fromisoformat(rate["start"])
+            if isinstance(rate["end"], str):
+                rate["end"] = datetime.datetime.fromisoformat(rate["end"])
+
+        self.outgoing_tariff = rates
+        return True
 
     def calculate_limit_points(self):
-        now = datetime.datetime.utcnow()
+        now = datetime.datetime.now(datetime.timezone.utc).astimezone()
         self.log("**Now Date: {} **".format(now), level="DEBUG")
         self.start_date = None
         self.end_date = None
         if self.start_period == "today":
+            # Set default limit to end of day
+            limit_end = datetime.datetime.max
+
             if hasattr(self, "limit_end"):
                 try:
-                    datetime.datetime.strptime(self.limit_end, "%H:%M")
+                    limit_end = datetime.datetime.strptime(self.limit_end, "%H:%M")
                 except ValueError:
-                    self.log("end_time not in correct HH:MM format", level="ERROR")
+                    self.log("end_time '{}' not in correct HH:MM format".format(self.limit_end), level="ERROR")
+                    return False
 
-                limit_end_t = self.limit_end
-                self.end_date = (
-                    datetime.date.today().isoformat() + "T" + limit_end_t + ":00Z"
-                )
-                if now.time() >= datetime.time(23, 30, 0):
-                    self.end_date = (
-                        (datetime.date.today() + datetime.timedelta(days=1)).isoformat()
-                        + "T"
-                        + limit_end_t
-                        + ":00Z"
-                    )
+            self.end_date = datetime.datetime.combine(now, limit_end.time(), tzinfo=now.tzinfo)
 
-                if self.use_timezone:
-                    self.end_date = self.limit_time_timezone(self.end_date)
+            if now.time() >= datetime.time(23, 30, 0):
+                self.end_date = self.end_date + datetime.timedelta(days=1)
 
-                self.log(
-                    "**Today Limit End Date: {} **".format(self.end_date), level="DEBUG"
-                )
+            self.end_date = self.floor_dt(self.end_date)
+
+            self.log(
+                "**{} Today Limit End Date: {} **".format(self.block_name, self.end_date), level="DEBUG"
+            )
 
             if hasattr(self, "limit_start"):
                 try:
-                    datetime.datetime.strptime(self.limit_start, "%H:%M")
+                    limit_start = datetime.datetime.strptime(self.limit_start, "%H:%M")
                 except ValueError:
                     self.log("start_time not in correct HH:MM format", level="ERROR")
+                    return False
 
-                self.start_date = (
-                    datetime.date.today().isoformat() + "T" + self.limit_start + ":00Z"
-                )
+                self.start_date = datetime.datetime.combine(now, limit_start.time(), tzinfo=now.tzinfo)
+
                 if now.time() >= datetime.time(23, 30, 0):
-                    self.start_date = (
-                        (datetime.date.today() + datetime.timedelta(days=1)).isoformat()
-                        + "T"
-                        + self.limit_start
-                        + ":00Z"
-                    )
-
-                if self.use_timezone:
-                    self.start_date = self.limit_time_timezone(self.start_date)
+                    self.start_date = self.start_date + datetime.timedelta(days=1)
 
                 self.log(
                     "**Today Limit Start Date: {} **".format(self.start_date),
@@ -173,19 +204,15 @@ class OctoBlock(hass.Hass):
                 )
 
             else:
-                if now.time() < datetime.time(23, 30, 0):
-                    self.start_date = datetime.date.today().isoformat() + "T00:00:00Z"
-                else:
-                    self.start_date = (
-                        datetime.date.today() + datetime.timedelta(days=1)
-                    ).isoformat() + "T00:00:00Z"
+                self.start_date = datetime.datetime.combine(now, datetime.datetime.min.time(), tzinfo=now.tzinfo)
+                if now.time() >= datetime.time(23, 30, 0):
+                    self.start_date = self.start_date + datetime.timedelta(days=1)
                 self.log(
                     "**Today Start Date: {} **".format(self.start_date), level="DEBUG"
                 )
 
         elif self.start_period == "now":
-            flr_now = self.floor_dt(now)
-            self.start_date = flr_now.isoformat(timespec="seconds") + "Z"
+            self.start_date = self.floor_dt(now)
             self.log("**Now Start Date: {} **".format(self.start_date), level="DEBUG")
         else:
             self.log(
@@ -193,7 +220,7 @@ class OctoBlock(hass.Hass):
                 + ' defaulting to "now"',
                 level="WARNING",
             )
-            self.start_date = now.isoformat()
+            self.start_date = self.floor_dt(now)
             self.log(
                 "**Defaulting Start Date: {} **".format(self.start_date), level="DEBUG"
             )
@@ -201,6 +228,7 @@ class OctoBlock(hass.Hass):
             "start date: {} / end date: {}".format(self.start_date, self.end_date),
             level="DEBUG",
         )
+        return True
 
     @classmethod
     def floor_dt(cls, dt, interval=30):
@@ -209,38 +237,21 @@ class OctoBlock(hass.Hass):
         return newdt
 
     @classmethod
-    def dt_to_api_date(cls, dt):
-        return dt.isoformat() + "Z"
-
-    @classmethod
-    def limit_time_timezone(cls, dtz):
-        fmt = "%Y-%m-%dT%H:%M:%S"
-        greenwich = pytz.timezone("Europe/London")
-        dt = dtz.strip("Z")
-        date_time = dateutil.parser.parse(dt)
-        local_datetime = date_time.astimezone(greenwich)
-        utc_datetime = local_datetime.astimezone(pytz.utc)
-        utcz = utc_datetime.strftime(fmt) + "Z"
-        return utcz
-
-    @classmethod
     def date_to_idx(cls, tariff, date):
-        # Date format for API - 2020-05-29T20:00:00Z
         idx = next(
-            (i for i, item in enumerate(tariff) if item["valid_from"] == date), None
+            (i for i, item in enumerate(tariff) if item["start"] == date), None
         )
         return idx
 
     def get_current_period_and_cost(self, tariffresults):
         now_or_next = "Current" if self.hours == 0 else "Next"
         direction = "import" if self.incoming else "export"
-        now_utc_flr = self.floor_dt(datetime.datetime.utcnow())
-        api_date_now = self.dt_to_api_date(now_utc_flr)
+        now_flr = self.floor_dt(datetime.datetime.now(datetime.timezone.utc).astimezone())
         self.log(
-            f"**Now API Date get_period_and_cost: {api_date_now} **", level="DEBUG"
+            f"**Now API Date get_period_and_cost: {now_flr} **", level="DEBUG"
         )
 
-        i = self.date_to_idx(tariffresults, api_date_now)
+        i = self.date_to_idx(tariffresults, now_flr)
         if str(self.hours).lower() == "next":
             i += 1
         self.price = tariffresults[i]["value_inc_vat"]
@@ -249,7 +260,7 @@ class OctoBlock(hass.Hass):
             level="INFO",
         )
         self.log(
-            f"**Tariff Date get_period_and_cost: {tariffresults[i]['valid_from']} **",
+            f"**Tariff Date get_period_and_cost: {tariffresults[i]['start']} **",
             level="DEBUG",
         )
 
@@ -320,29 +331,22 @@ class OctoBlock(hass.Hass):
             for curridx in range(start_idx, end_idx):
                 period = tariffresults[curridx]
                 if period[str(self.hours) + "_hour_average"] == self.price:
-                    self.time = period["valid_from"]
-                    self.log("**Time: {}**".format(self.time), level="DEBUG")
-
-                    if self.use_timezone:
-                        greenwich = pytz.timezone("Europe/London")
-                        date_time = dateutil.parser.parse(self.time)
-                        local_datetime = date_time.astimezone(greenwich)
-                        self.time = local_datetime.strftime(self.time_format)
-                    else:
-                        date_time = dateutil.parser.parse(self.time)
-                        self.time = date_time.strftime(self.time_format)
+                    self.log("**Time: {}**".format(period["start"]), level="DEBUG")
+                    self.time = period["start"]
+                    self.time_end = period["start"] + datetime.timedelta(hours=self.hours)
 
                     self.log(
                         "Best priced {} hour ".format(str(self.hours))
-                        + "period starts at: {}".format(self.time),
+                        + "period starts at: {}, until {}".format(self.time, self.time_end),
                         level="INFO",
                     )
 
     def write_block_sensor_data(self):
         hours = str(self.hours).replace(".", "_")
 
-        if self.name:
-            name = str(self.name).replace(".", "_")
+        if self.block_name:
+            name = str(self.block_name).replace(".", "_")
+            entity_id = "sensor." + name
             entity_id_t = "sensor." + name + "_time"
             entity_id_p = "sensor." + name + "_price"
 
@@ -360,19 +364,32 @@ class OctoBlock(hass.Hass):
                     attributes={"unit_of_measurement": "p/kWh", "icon": "mdi:flash"},
                 )
             else:
-                if not self.name:
+                if not self.block_name:
+                    entity_id = "sensor.octopus_export" + hours + "hour"
                     entity_id_t = "sensor.octopus_" + hours + "hour_time"
                     entity_id_p = "sensor.octopus_" + hours + "hour_price"
 
+                if self.legacy_entities:
+                    self.set_state(
+                        entity_id_t,
+                        state=self.time,
+                        attributes={"icon": "mdi:clock-outline"},
+                    )
+                    self.set_state(
+                        entity_id_p,
+                        state=round(self.price, int(self.price_round)),
+                        attributes={"unit_of_measurement": "p/kWh", "icon": "mdi:flash"},
+                    )
+
                 self.set_state(
-                    entity_id_t,
-                    state=self.time,
-                    attributes={"icon": "mdi:clock-outline"},
-                )
-                self.set_state(
-                    entity_id_p,
-                    state=round(self.price, int(self.price_round)),
-                    attributes={"unit_of_measurement": "p/kWh", "icon": "mdi:flash"},
+                    entity_id,
+                    self.time,
+                    attributes={"start": self.time,
+                                "end": self.time_end,
+                                "price": self.price,
+                                "price_unit_of_measurement": "p/kWh",
+                                "icon": "mdi:clock-outline"
+                            },
                 )
         elif self.outgoing:
             if self.hours == 0:
@@ -394,30 +411,42 @@ class OctoBlock(hass.Hass):
                     },
                 )
             else:
-                if not self.name:
+                if not self.block_name:
+                    entity_id = "sensor.octopus_export" + hours + "hour"
                     entity_id_t = "sensor.octopus_export" + hours + "hour_time"
                     entity_id_p = "sensor.octopus_export" + hours + "hour_price"
 
+                if self.legacy_entities:
+                    self.set_state(
+                        entity_id_t,
+                        state=self.time,
+                        attributes={"icon": "mdi:clock-outline"},
+                    )
+                    self.set_state(
+                        entity_id_p,
+                        state=round(self.price, int(self.price_round)),
+                        attributes={
+                            "unit_of_measurement": "p/kWh",
+                            "icon": "mdi:flash-outline",
+                        },
+                    )
+
                 self.set_state(
-                    entity_id_t,
-                    state=self.time,
-                    attributes={"icon": "mdi:clock-outline"},
-                )
-                self.set_state(
-                    entity_id_p,
-                    state=round(self.price, int(self.price_round)),
-                    attributes={
-                        "unit_of_measurement": "p/kWh",
-                        "icon": "mdi:flash-outline",
-                    },
+                    entity_id,
+                    self.time,
+                    attributes={"start": self.time,
+                                "end": self.time_end,
+                                "price": self.price,
+                                "price_unit_of_measurement": "p/kWh",
+                                "icon": "mdi:clock-outline"
+                            },
                 )
 
     def is_price_below_x(self):
         result = False
         tariffresults = self.incoming_tariff
-        now_utc_flr = self.floor_dt(datetime.datetime.utcnow())
-        api_date_now = self.dt_to_api_date(now_utc_flr)
-        i = self.date_to_idx(tariffresults, api_date_now)
+        now_flr = self.floor_dt(datetime.datetime.now(datetime.timezone.utc).astimezone())
+        i = self.date_to_idx(tariffresults, now_flr)
 
         for n in range(i, min(self.duration_ahead * 2 + i, len(tariffresults) - 1)):
             period_cost = tariffresults[n]["value_inc_vat"]
@@ -435,8 +464,8 @@ class OctoBlock(hass.Hass):
 
     def write_lookahead_sensor_data(self):
         state = self.is_price_below_x()
-        if self.name:
-            name = str(self.name).replace(".", "_")
+        if self.block_name:
+            name = str(self.block_name).replace(".", "_")
             self.entity_id = "sensor." + name
         else:
             price = str(round(self.price, int(self.price_round))).replace(".", "_")
