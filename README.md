@@ -9,20 +9,26 @@ If you think this will be useful to you, please consider signing up to Octopus E
 Octoblock is an app which works under [AppDaemon](https://www.home-assistant.io/docs/ecosystem/appdaemon/) within [Home Assistant](https://www.home-assistant.io/) which finds the cheapest “n” hour block for import or the most expensive “n” hour block for export, and works out the price of that block, for the Octopus Energy, Agile Octopus / Agile Outgoing Octopus tariffs. 
 
 It creates and sets sensors for the cost and start time,  for example, using the `apps.yaml` file below, the following entities are created and then updated:
-```yaml
-sensor.octopus_1hour_time
-sensor.octopus_1hour_price
-sensor.octopus_1_5hour_time
-sensor.octopus_1_5hour_price
-```
+
+| Name                       | Value      | Attributes                                        | Created when?                  |
+|----------------------------|------------|---------------------------------------------------|--------------------------------|
+| sensor.octopus_1hour       | Start time | `start`<br>`end`<br>`price`<br>`price_unit_of_measurement` | Always                    |
+| sensor.octopus_1hour_price | Unit rate  | `unit_of_measurement`                             | `legacy_entities` enabled |
+| sensor.octopus_1hour_time  | Start time | None                                              | `legacy_entities` enabled |
+| sensor.octopus_1_5hour       | Start time | `start`<br>`end`<br>`price`<br>`price_unit_of_measurement` | Always                    |
+| sensor.octopus_1_5hour_price | Unit rate  | `unit_of_measurement`                             | `legacy_entities` enabled |
+| sensor.octopus_1_5hour_time  | Start time | None                                              | `legacy_entities` enabled |
+
 
 Sensors for export will be created with naming such as:
-```yaml
-sensor.octopus_export_1hour_time
-sensor.octopus_export_1hour_price
-```
 
-Sensor names can be overridden and your own name specified in the yaml configuration. These will be of the format `sensor.<your_name>_time` and `sensor.<your_name>_price` with any dots in `<your_name>` changed to underscores.
+| Name                       | Value      | Attributes                                        | Created when?                  |
+|----------------------------|------------|---------------------------------------------------|--------------------------------|
+| sensor.octopus_export_1hour       | Start time | `start`<br>`end`<br>`price`<br>`price_unit_of_measurement` | Always                    |
+| sensor.octopus_export_1hour_price | Unit rate  | `unit_of_measurement`                             | `legacy_entities` enabled |
+| sensor.octopus_export_1hour_time  | Start time | None                                              | `legacy_entities` enabled |
+
+Sensor names can be overridden and your own name specified in the yaml configuration. These will be of the format `sensor.<your_name>`, `sensor.<your_name>_time`, and `sensor.<your_name>_price` with any dots in `<your_name>` changed to underscores.
 
 ### Special Cases
 With `start_period` set to `now` and `hour` set to `0` the current import or export price is returned, and the sensors are named:
@@ -90,6 +96,8 @@ The module and class sections need to remain as above, other sections should be 
 `export_entity_id` must be set to the name of the export_current_day_rates entity created by [Octopus Energy Integration](https://github.com/BottlecapDave/HomeAssistant-OctopusEnergy/).
 
 `price_round` can be set to the number of decimal places to round the average price for the specified period to, and defaults to 4 if not specified.  For example, set to 2 to round to 2 decimal places, e.g. 14.56 p/kWh.
+
+`legacy_entities` is optional, can be `True` or `False` (default: `True`). Whether or not to create the old separate *_time, *_price entities.
 
 
 ### Blocks

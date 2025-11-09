@@ -12,6 +12,7 @@ class OctoBlock(hass.Hass):
         self.price_round = self.args.get("price_round", 4)
         self.blocks = self.args.get("blocks", None)
         self.lookaheads = self.args.get("lookaheads", None)
+        self.legacy_entities = self.args.get("legacy_entities", True)
 
         if self.import_entity_id:
             self.import_entity_id = self.import_entity_id.replace("_current_day_rates", "").replace("_next_day_rates", "")
@@ -332,10 +333,11 @@ class OctoBlock(hass.Hass):
                 if period[str(self.hours) + "_hour_average"] == self.price:
                     self.log("**Time: {}**".format(period["start"]), level="DEBUG")
                     self.time = period["start"]
+                    self.time_end = period["start"] + datetime.timedelta(hours=self.hours)
 
                     self.log(
                         "Best priced {} hour ".format(str(self.hours))
-                        + "period starts at: {}".format(self.time),
+                        + "period starts at: {}, until {}".format(self.time, self.time_end),
                         level="INFO",
                     )
 
@@ -344,6 +346,7 @@ class OctoBlock(hass.Hass):
 
         if self.block_name:
             name = str(self.block_name).replace(".", "_")
+            entity_id = "sensor." + name
             entity_id_t = "sensor." + name + "_time"
             entity_id_p = "sensor." + name + "_price"
 
@@ -362,18 +365,31 @@ class OctoBlock(hass.Hass):
                 )
             else:
                 if not self.block_name:
+                    entity_id = "sensor.octopus_export" + hours + "hour"
                     entity_id_t = "sensor.octopus_" + hours + "hour_time"
                     entity_id_p = "sensor.octopus_" + hours + "hour_price"
 
+                if self.legacy_entities:
+                    self.set_state(
+                        entity_id_t,
+                        state=self.time,
+                        attributes={"icon": "mdi:clock-outline"},
+                    )
+                    self.set_state(
+                        entity_id_p,
+                        state=round(self.price, int(self.price_round)),
+                        attributes={"unit_of_measurement": "p/kWh", "icon": "mdi:flash"},
+                    )
+
                 self.set_state(
-                    entity_id_t,
-                    state=self.time,
-                    attributes={"icon": "mdi:clock-outline"},
-                )
-                self.set_state(
-                    entity_id_p,
-                    state=round(self.price, int(self.price_round)),
-                    attributes={"unit_of_measurement": "p/kWh", "icon": "mdi:flash"},
+                    entity_id,
+                    self.time,
+                    attributes={"start": self.time,
+                                "end": self.time_end,
+                                "price": self.price,
+                                "price_unit_of_measurement": "p/kWh",
+                                "icon": "mdi:clock-outline"
+                            },
                 )
         elif self.outgoing:
             if self.hours == 0:
@@ -396,21 +412,34 @@ class OctoBlock(hass.Hass):
                 )
             else:
                 if not self.block_name:
+                    entity_id = "sensor.octopus_export" + hours + "hour"
                     entity_id_t = "sensor.octopus_export" + hours + "hour_time"
                     entity_id_p = "sensor.octopus_export" + hours + "hour_price"
 
+                if self.legacy_entities:
+                    self.set_state(
+                        entity_id_t,
+                        state=self.time,
+                        attributes={"icon": "mdi:clock-outline"},
+                    )
+                    self.set_state(
+                        entity_id_p,
+                        state=round(self.price, int(self.price_round)),
+                        attributes={
+                            "unit_of_measurement": "p/kWh",
+                            "icon": "mdi:flash-outline",
+                        },
+                    )
+
                 self.set_state(
-                    entity_id_t,
-                    state=self.time,
-                    attributes={"icon": "mdi:clock-outline"},
-                )
-                self.set_state(
-                    entity_id_p,
-                    state=round(self.price, int(self.price_round)),
-                    attributes={
-                        "unit_of_measurement": "p/kWh",
-                        "icon": "mdi:flash-outline",
-                    },
+                    entity_id,
+                    self.time,
+                    attributes={"start": self.time,
+                                "end": self.time_end,
+                                "price": self.price,
+                                "price_unit_of_measurement": "p/kWh",
+                                "icon": "mdi:clock-outline"
+                            },
                 )
 
     def is_price_below_x(self):
