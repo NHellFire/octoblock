@@ -164,6 +164,9 @@ class OctoBlock(hass.Hass):
         self.start_date = None
         self.end_date = None
         if self.start_period == "today":
+            # Set default limit to end of day
+            limit_end = datetime.datetime.max
+
             if hasattr(self, "limit_end"):
                 try:
                     limit_end = datetime.datetime.strptime(self.limit_end, "%H:%M")
@@ -171,14 +174,16 @@ class OctoBlock(hass.Hass):
                     self.log("end_time '{}' not in correct HH:MM format".format(self.limit_end), level="ERROR")
                     return False
 
-                self.end_date = datetime.datetime.combine(now, limit_end.time(), tzinfo=now.tzinfo)
+            self.end_date = datetime.datetime.combine(now, limit_end.time(), tzinfo=now.tzinfo)
 
-                if now.time() >= datetime.time(23, 30, 0):
-                    self.end_date = self.end_date + datetime.timedelta(days=1)
+            if now.time() >= datetime.time(23, 30, 0):
+                self.end_date = self.end_date + datetime.timedelta(days=1)
 
-                self.log(
-                    "**Today Limit End Date: {} **".format(self.end_date), level="DEBUG"
-                )
+            self.end_date = self.floor_dt(self.end_date)
+
+            self.log(
+                "**{} Today Limit End Date: {} **".format(self.block_name, self.end_date), level="DEBUG"
+            )
 
             if hasattr(self, "limit_start"):
                 try:
